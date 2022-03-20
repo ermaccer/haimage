@@ -119,10 +119,10 @@ int main(int argc, char* argv[])
 		{
 			int entries;
 			int _pad;
+			bool image_reverse = false;
 
 			pFile.read((char*)&entries, sizeof(int));
 			pFile.read((char*)&_pad, sizeof(int));
-
 
 			for (int i = 0; i < entries; i++)
 			{
@@ -130,6 +130,7 @@ int main(int argc, char* argv[])
 				pFile.read((char*)&abm, sizeof(harvester_abm));
 
 				std::cout << "Processing image " << i + 1 << "/" << entries << std::endl;
+				std::cout << " X:" << abm.width << " Y:" << abm.height << std::endl;
 
 				if (abm.flag)
 				{
@@ -158,11 +159,8 @@ int main(int argc, char* argv[])
 							for (int x = 0; x < byte.rest; x++)
 							{
 								dataBuff.push_back(tmp);
-
 							}
-
 						}
-
 					}
 
 					// create bmp
@@ -172,16 +170,16 @@ int main(int argc, char* argv[])
 					bmp.bfSize = abm.width * abm.height;
 					bmp.bfReserved1 = 0;
 					bmp.bfReserved2 = 0;
-					bmp.bfOffBits = sizeof(bmp_header) + sizeof(bmp_info_header) + 1024;
+					bmp.bfOffBits = sizeof(bmp_header) + sizeof(bmp_info_header);
 					bmpf.biSize = sizeof(bmp_info_header);
 					bmpf.biWidth = abm.width;
 					bmpf.biHeight = abm.height;
 					bmpf.biPlanes = 1;
-					bmpf.biBitCount = 8;
+					bmpf.biBitCount = 32;
 					bmpf.biCompression = 0;
-					bmpf.biXPelsPerMeter = 2835;
-					bmpf.biYPelsPerMeter = 2835;
-					bmpf.biClrUsed = 256;
+					bmpf.biXPelsPerMeter = 0;
+					bmpf.biYPelsPerMeter = 0;
+					bmpf.biClrUsed = 0;
 					bmpf.biClrImportant = 0;
 
 					std::string output = argv[argc - 1];
@@ -194,36 +192,31 @@ int main(int argc, char* argv[])
 					oFile.write((char*)&bmpf, sizeof(bmp_info_header));
 					// swap red and blue 
 		
-					for (int a = 0; a < 256; a++)
+					if (!image_reverse)
 					{
-						char r = palData4[a].r;
-						char b = palData4[a].b;
-						palData4[a].r = b;
-						palData4[a].b = r;
-						oFile.write((char*)&palData4[a], sizeof(rgbr_pal_entry));
-					}
-			
-					int size = abm.width;
-
-					// from msdn
-					if (abm.width & 0x1)
-						size = ((((abm.width * 8) + 31) & ~31) >> 3);
-
-					std::unique_ptr<unsigned char[]> imageBuff = std::make_unique<unsigned char[]>(size * abm.height);
-
-					for (int y = 0; y < abm.height; y++)
-					{
-						int padRowSize = (y * size);
-						int rowSize = (y * abm.width);
-						unsigned char *dest = &imageBuff[padRowSize];
-						unsigned char *src = &dataBuff[rowSize];
-
-						memcpy(dest, src, abm.width);
+						for (int a = 0; a < 256; a++)
+						{
+							char r = palData4[a].r;
+							char b = palData4[a].b;
+							palData4[a].r = b;
+							palData4[a].b = r;
+						}
+						image_reverse = true;
 					}
 
 
-					for (int a = 0; a < size * abm.height; a++)
-						oFile.write((char*)&imageBuff[size * abm.height - a], sizeof(char));
+					
+
+					for (int y = abm.height - 1; y >= 0; y--)
+					{
+						for (int x = 0; x < abm.width; x++)
+						{
+							int id = dataBuff[x + (y * abm.width)];
+							oFile.write((char*)&palData4[id], sizeof(rgbr_pal_entry));
+						}
+					}
+
+					image_reverse = true;
 				}
 				else
 				{
